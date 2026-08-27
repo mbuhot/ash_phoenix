@@ -615,5 +615,59 @@ defmodule AshPhoenix.FilterFormTest do
       assert input_value(predicate_form, :operator) == :eq
       assert input_value(predicate_form, :negated) == false
     end
+
+    test "predicate negation survives the round trip" do
+      form =
+        Post
+        |> FilterForm.new(
+          params: %{
+            field: :title,
+            value: "new post",
+            negated: true
+          }
+        )
+
+      encoded =
+        form
+        |> FilterForm.params_for_query()
+        |> Plug.Conn.Query.encode()
+
+      decoded = Plug.Conn.Query.decode(encoded)
+
+      rebuilt = FilterForm.new(Post, params: decoded)
+
+      assert [predicate_form] =
+               rebuilt
+               |> form_for("action")
+               |> inputs_for(:components)
+
+      assert input_value(predicate_form, :negated) == true
+
+      assert FilterForm.to_filter_expression(rebuilt) ==
+               FilterForm.to_filter_expression(form)
+    end
+
+    test "predicate negation is read from the legacy \"negated?\" key" do
+      form =
+        FilterForm.new(Post,
+          params: %{
+            "components" => %{
+              "0" => %{
+                "field" => "title",
+                "value" => "new post",
+                "operator" => "eq",
+                "negated?" => "true"
+              }
+            }
+          }
+        )
+
+      assert [predicate_form] =
+               form
+               |> form_for("action")
+               |> inputs_for(:components)
+
+      assert input_value(predicate_form, :negated) == true
+    end
   end
 end

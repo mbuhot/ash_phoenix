@@ -658,7 +658,9 @@ defmodule AshPhoenix.FilterForm do
       %{
         "id" => params[:id] || params["id"] || Ash.UUID.generate(),
         "operator" => to_string(params[:operator] || params["operator"] || "eq"),
-        "negated" => params[:negated] || params["negated"] || false,
+        # "negated?" was (erroneously) the key written by `params_for_query/1`
+        # in the past, so we accept it for previously serialized params
+        "negated" => params[:negated] || params["negated"] || params["negated?"] || false,
         "arguments" => params[:arguments] || params["arguments"],
         "field" => field,
         "value" => params[:value] || params["value"],
@@ -779,7 +781,9 @@ defmodule AshPhoenix.FilterForm do
   end
 
   defp negated?(params) do
-    params["negated"] in [true, "true"]
+    # "negated?" was (erroneously) the key written by `params_for_query/1`
+    # in the past, so we accept it for previously serialized params
+    (params["negated"] || params["negated?"]) in [true, "true"]
   end
 
   defp validate_components(form, component_params, opts) do
@@ -852,10 +856,10 @@ defmodule AshPhoenix.FilterForm do
   def params_for_query(%AshPhoenix.FilterForm.Predicate{} = predicate) do
     params =
       Map.new(~w(field value operator negated? path)a, fn field ->
-        if field == :path do
-          {to_string(field), Enum.join(predicate.path, ".")}
-        else
-          {to_string(field), Map.get(predicate, field)}
+        case field do
+          :path -> {"path", Enum.join(predicate.path, ".")}
+          :negated? -> {"negated", predicate.negated?}
+          field -> {to_string(field), Map.get(predicate, field)}
         end
       end)
 
